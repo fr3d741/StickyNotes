@@ -3,6 +3,7 @@
 #include <QTextStream>
 #include <QFile>
 #include <QDir>
+#include <QDebug>
 
 #include <filesystem>
 #include <random>

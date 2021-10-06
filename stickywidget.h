@@ -3,6 +3,7 @@
 
 #include <QWidget>
 #include <QPoint>
+#include <memory>
 
 class INoteRepository;
 class QMenu;

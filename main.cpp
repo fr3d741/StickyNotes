@@ -1,4 +1,4 @@
-#include "stickywidget.h"
+#include <stickywidget.h>
 
 #include <QApplication>
 #include <Controller.h>
