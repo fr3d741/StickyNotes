@@ -2,22 +2,29 @@
 #include <QTextStream>
 #include <QMenu>
 
-#include "stickywidget.h"
-#include <stickyfactory.h>
-#include <stickycontainer.h>
+#include <stickywidget.h>
+#include <INoteRepository.h>
+#include <Controller.h>
+
 #include "ui_stickywidget.h"
 
-StickyWidget::StickyWidget(QWidget *parent)
+StickyWidget::StickyWidget(QWidget *parent, INoteRepository* repository)
     : QWidget(parent)
+    , repository_(repository)
     , ui(new Ui::StickyWidget)
 {
-    block_reentrancy_ = false;
-    ui->setupUi(this);
-    setWindowFlags(Qt::Dialog | Qt::WindowTitleHint | Qt::WindowMinimizeButtonHint);
-    //setWindowFlags(Qt::Dialog);
-    //setWindowFlags(Qt::CustomizeWindowHint);
-    setWindowModality(Qt::NonModal);
-    //setContextMenuPolicy(Qt::CustomContextMenu);
+    init();
+    id_ = repository_->generateId();
+}
+
+StickyWidget::StickyWidget(QWidget *parent, INoteRepository* repository, QString id)
+    : QWidget(parent)
+    , repository_(repository)
+    , id_(id)
+    , ui(new Ui::StickyWidget)
+{
+    init();
+    ui->textEdit->setText(repository_->load(id_));
 }
 
 StickyWidget::~StickyWidget()
@@ -29,32 +36,55 @@ bool StickyWidget::eventFilter(QObject* /*watched*/, QEvent* event) {
   if (event->type() != QEvent::ContextMenu)
     return false;
 
-  return false;
+  showContextMenu(static_cast<QContextMenuEvent*>(event), ui->textEdit->createStandardContextMenu());
+  return true;
 }
 
-void StickyWidget::contextMenuEvent(QContextMenuEvent* /*event*/) {
+const QString StickyWidget::id() const
+{
+    return id_;
+}
 
-  std::unique_ptr<QMenu> menu = std::make_unique<QMenu>();
-  auto action = menu->addAction("Quit");
-  connect(action, &QAction::triggered, this, &StickyWidget::slotQuit);
-  menu->exec();
+void StickyWidget::contextMenuEvent(QContextMenuEvent* event) {
+
+    showContextMenu(event);
 }
 
 void StickyWidget::on_addButton_clicked()
 {
-    auto w = StickyFactory::createWidget();
-    w->show();
+    Controller::instance().addWidget();
 }
-
 
 void StickyWidget::on_deleteButton_clicked()
 {
-    StickyFactory::removeWidget(this);
-    close();
+    Controller::instance().removeWidget(this);
 }
 
 void StickyWidget::on_textEdit_textChanged()
 {
+    updateTitle();
+
+    QString text = ui->textEdit->document()->toPlainText();
+    repository_->store(id_, text);
+}
+
+void StickyWidget::init()
+{
+    block_reentrancy_ = false;
+    ui->setupUi(this);
+    setWindowFlags(Qt::Dialog | Qt::WindowTitleHint | Qt::WindowMinimizeButtonHint);
+    setWindowModality(Qt::NonModal);
+    ui->textEdit->viewport()->installEventFilter(this);
+
+    //const QString styles_sheet =
+    //    "* { background-color: rgb(255,0,0) }";
+
+    //qApp->setStyleSheet(styles_sheet);
+}
+
+void StickyWidget::updateTitle()
+{
+
     auto block = ui->textEdit->document()->firstBlock();
     auto content = block.text();
     QTextStream stream(&content);
@@ -63,7 +93,15 @@ void StickyWidget::on_textEdit_textChanged()
     ui->title->setText(title_);
 }
 
-void StickyWidget::slotQuit() {
+void StickyWidget::showContextMenu(QContextMenuEvent* event, QMenu* m) {
 
-  StickyContainer::Instance().save();
+    auto menu = new QMenu(this);
+    if (m != nullptr) {
+        m->setTitle("Actions");
+        menu->addMenu(m);
+        menu->addSeparator();
+    }
+    Controller::instance().addActions(menu);
+    menu->exec(event->globalPos());
 }
+
